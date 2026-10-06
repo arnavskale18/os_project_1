@@ -17,6 +17,7 @@ class SimulationEngine:
         self.alpha = 0.6
         self.safety_margin = 1.0
         self.starvation_threshold = 10
+        self.script_indices: Dict[str, int] = {}
         self.metrics_collector = MetricsCollector()
         self.reset(scenario, algorithm)
 
@@ -29,6 +30,7 @@ class SimulationEngine:
         total_resources, process_models = get_scenario_data(self.scenario)
         self.tick = 0
         self.total_resources = list(total_resources)
+        self.script_indices = {p.pid: 0 for p in process_models}
         
         # Available = Total - sum(allocation)
         allocated_sum = [0] * len(total_resources)
@@ -112,12 +114,22 @@ class SimulationEngine:
                     p.allocation = [0] * len(self.total_resources)
                     # Need remains max_claim - allocation
                     p.need = list(p.max_claim)
-                    p.state = ProcessState.COMPLETED
-                    self.log_event(
-                        pid, "RELEASE",
-                        f"Process {pid} completed burst and released resources {released}. Available: {self.available_resources}."
-                    )
-                    self.log_event(pid, "COMPLETE", f"Process {pid} reached COMPLETED state.")
+                    
+                    s_idx = self.script_indices.get(pid, 0)
+                    has_more = (s_idx < len(p.scripted_requests)) or bool(p.current_request)
+                    if has_more:
+                        p.state = ProcessState.READY
+                        self.log_event(
+                            pid, "RELEASE",
+                            f"Process {pid} completed burst and released resources {released}. Waiting for next scheduled burst. Available: {self.available_resources}."
+                        )
+                    else:
+                        p.state = ProcessState.COMPLETED
+                        self.log_event(
+                            pid, "RELEASE",
+                            f"Process {pid} completed burst and released resources {released}. Available: {self.available_resources}."
+                        )
+                        self.log_event(pid, "COMPLETE", f"Process {pid} reached COMPLETED state.")
 
         # 2. Update WAITING processes aging and waiting times
         for pid, p in self.processes.items():
@@ -134,13 +146,15 @@ class SimulationEngine:
         pending_requests: List[Tuple[str, List[int], int]] = []
         for pid, p in self.processes.items():
             if p.state in [ProcessState.READY, ProcessState.WAITING]:
-                # Find if process has a request scheduled for this tick
-                matching_script = next((s for s in p.scripted_requests if s.tick == self.tick), None)
-                if matching_script:
-                    p.current_request = list(matching_script.request)
-                    p.execution_time = matching_script.burst
-                    pending_requests.append((pid, list(matching_script.request), matching_script.burst))
-                    self.log_event(pid, "REQUEST", f"Process {pid} issued resource request {matching_script.request}.")
+                s_idx = self.script_indices.get(pid, 0)
+                if not p.current_request and s_idx < len(p.scripted_requests):
+                    next_req = p.scripted_requests[s_idx]
+                    if next_req.tick <= self.tick:
+                        p.current_request = list(next_req.request)
+                        p.execution_time = next_req.burst
+                        self.script_indices[pid] = s_idx + 1
+                        pending_requests.append((pid, list(p.current_request), p.execution_time))
+                        self.log_event(pid, "REQUEST", f"Process {pid} issued resource request {next_req.request}.")
                 elif p.current_request:
                     # Unfulfilled pending request from previous tick
                     pending_requests.append((pid, list(p.current_request), p.execution_time))

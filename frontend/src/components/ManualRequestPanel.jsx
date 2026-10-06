@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import { Sliders, CheckCircle2, XCircle, ArrowRight, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function ManualRequestPanel({ processes, resourceNames }) {
@@ -37,24 +37,29 @@ export default function ManualRequestPanel({ processes, resourceNames }) {
         <span className="text-xs text-slate-400 font-mono">Test arbitrary process requests</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mb-4">
-        <div>
-          <label className="text-[11px] text-slate-400 uppercase font-semibold block mb-1">Process</label>
-          <select
-            value={selectedPid}
-            onChange={(e) => setSelectedPid(e.target.value)}
-            className="w-full bg-slate-950 text-xs text-slate-200 border border-slate-800 rounded-lg p-2 font-mono"
-          >
-            {processes.map((p) => (
-              <option key={p.pid} value={p.pid}>
-                {p.pid} (Priority {p.priority})
-              </option>
-            ))}
-          </select>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end mb-4">
+        <div className="md:col-span-2">
+          <label className="text-[11px] text-slate-400 uppercase font-semibold block mb-1">
+            Target Process
+          </label>
+          <div className="relative">
+            <select
+              value={selectedPid}
+              onChange={(e) => setSelectedPid(e.target.value)}
+              className="w-full bg-slate-950 text-xs text-slate-200 border border-slate-700/80 rounded-lg px-3 py-2 font-mono appearance-none focus:outline-none focus:border-emerald-500 cursor-pointer pr-8"
+            >
+              {processes.map((p) => (
+                <option key={p.pid} value={p.pid} className="bg-slate-900 text-slate-200 py-1">
+                  {p.pid} (Priority {p.priority}) {p.need ? `[Need: ${p.need.join(',')}]` : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
         </div>
 
         {names.map((name, idx) => (
-          <div key={name}>
+          <div key={name} className="md:col-span-1">
             <label className="text-[11px] text-slate-400 uppercase font-semibold block mb-1">{name} Amount</label>
             <input
               type="number"
@@ -62,7 +67,7 @@ export default function ManualRequestPanel({ processes, resourceNames }) {
               max="20"
               value={requestInputs[`r${idx}`] ?? 0}
               onChange={(e) => setRequestInputs({ ...requestInputs, [`r${idx}`]: e.target.value })}
-              className="w-full bg-slate-950 text-xs text-slate-200 border border-slate-800 rounded-lg p-2 font-mono"
+              className="w-full bg-slate-950 text-xs text-slate-200 border border-slate-700/80 rounded-lg px-3 py-2 font-mono focus:outline-none focus:border-emerald-500"
             />
           </div>
         ))}
@@ -71,7 +76,7 @@ export default function ManualRequestPanel({ processes, resourceNames }) {
       <button
         onClick={handleEvaluate}
         disabled={loading}
-        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2"
+        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 shadow-md shadow-emerald-950/20 active:scale-[0.99]"
       >
         {loading ? "Evaluating Banker Safety..." : "Evaluate Request"}
       </button>
